@@ -1,0 +1,94 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+
+% Header and footer
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Week 1 Report}
+\lhead{Online Trackers for Small Object Detection}
+\rfoot{Page \thepage}
+
+\title{\textbf{Weekly Progress Report - Week 1} \\
+	\large Improve performance of existing online trackers for small object detection [UAV Videos]}
+
+\author{Group: The Convolutioners\\\{Aagam Sheth, Mahima Parekh, Khevn Thanki, Riddhi Bhargava\}}
+
+\date{Reporting Period: February 16 - February 21, 2026 \\
+	Submission Date: February 21, 2026}
+
+
+\begin{document}
+	
+	\maketitle
+	
+	\section*{Outline of Performed Tasks:}
+	
+	\begin{itemize}[leftmargin=*]
+		\item Reviewed reference materials provided by TA including CVPR 2025 paper, MOT metrics documentation, and GitHub repositories for Kalman Filter implementation, and BoxMOT framework
+		\item Successfully downloaded and explored the AU Drone Dataset
+		\item Studied challenges specific to small object detection in UAV videos such as low pixel resolution, scale variation, background clutter, motion blur, and occlusions
+	\end{itemize}
+	
+	\section*{Project Overview}
+	
+	\textbf{Problem Statement:} Improve existing online trackers for small object detection in UAV videos. This study evaluates Computer Vision methods for small object tracking in UAV videos.
+	
+	Small object detection in UAV imagery presents unique challenges because objects often occupy a very small fraction of the frame (sometimes less than 1\% of total pixels). Due to downsampling in convolutional neural networks, fine-grained spatial features may be lost, reducing localization accuracy. Additionally, cluttered backgrounds and dense multi-object scenes increase false positives and identity switches during tracking. 
+	
+	The objective is to design a robust pipeline that enhances detection quality for small objects and improves tracking consistency using online trackers evaluated through standard MOT metrics.
+	
+	\section*{Reference Materials Studied}
+	
+	\begin{enumerate}[leftmargin=*]
+		\item Primary research paper from CVPR 2025: \\
+		\url{https://cvpr.thecvf.com/virtual/2025/poster/35174}
+		
+		Studied advancements in small object detection and multi-object tracking, focusing on feature representation, motion modeling, and robustness in aerial scenarios.
+		
+		\item MOT tracking metrics documentation: \\
+		\url{https://miguel-mendez-ai.com/2024/08/25/mot-tracking-metrics}
+		
+		Reviewed evaluation metrics including:
+		\begin{itemize}
+			\item MOTA (Multiple Object Tracking Accuracy)
+			\item MOTP (Multiple Object Tracking Precision)
+			\item IDF1 (Identity F1 Score)
+			\item False Positives (FP) and False Negatives (FN)
+		\end{itemize}
+		
+		\item GitHub repositories for implementation reference:
+		\begin{itemize}
+			\item Multiple Object Tracking using Kalman Filter: \\
+			\url{https://github.com/NickNair/Multiple-Object-Tracking-using-Kalman-Filter}
+			
+			Understood motion prediction using state-space models and covariance updates.
+			
+			\item BoxMOT tracker framework: \\
+			\url{https://github.com/mikel-brostrom/boxmot}
+			
+			Explored integration of detection models (e.g., YOLO) with tracking algorithms such as DeepSORT and ByteTrack.
+		\end{itemize}
+	\end{enumerate}
+	
+	\section*{Outcomes:}
+	
+	\begin{itemize}[leftmargin=*]
+		\item Understood classical tracking methods (SORT, Mean-Shift, CamShift) and Kalman Filtering
+		\item Understood AU Drone Dataset structure including annotation format and video sequences
+		\item Identified key challenges in small object detection affecting tracker performance
+		\item Understood relationship between detection accuracy and tracking metrics
+	\end{itemize}
+	
+	\section*{Tentative List of Tasks for Next Week:}
+	
+	\begin{enumerate}[leftmargin=*]
+		\item Set up development environment (Python, OpenCV, PyTorch/TensorFlow, YOLO v8) and complete study of reference papers
+		\item Understand MOT evaluation metrics (MOTA, MOTP, IDF1)
+	\end{enumerate}
+	
+\end{document}
