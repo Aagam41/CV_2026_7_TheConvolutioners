@@ -1,0 +1,22 @@
+{
+  "run_id": 1,
+  "overall_fps": 12.720464527666987,
+  "mean_hota_50_approx": 0.24596077272554664,
+  "mean_deta_50": 0.1172643605204697,
+  "mean_assa_50": 0.5159001545843734,
+  "motmetrics_overall": {
+    "num_frames": 219.0,
+    "mota": 0.11108451041417289,
+    "motp": 0.22304379745413053,
+    "idf1": 0.19017185058940492,
+    "idp": 0.8633139909735654,
+    "idr": 0.10685499960098954,
+    "num_switches": 13.0,
+    "num_false_positives": 73.0,
+    "num_misses": 11053.0,
+    "mostly_tracked": 6.0,
+    "partially_tracked": 15.0,
+    "mostly_lost": 97.0,
+    "num_fragmentations": 69.0
+  }
+}
