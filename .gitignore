@@ -208,3 +208,6 @@ __marimo__/
 
 .idea/
 dataset/
+siamese_botsort/crops/
+runs/
+eval_*/
