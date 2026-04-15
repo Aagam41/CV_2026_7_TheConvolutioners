@@ -1,86 +1,87 @@
-"""Tracker factory built on top of BoxMOT's Python API.
+"""Tracker factory wrapping BoxMOT 17's create_tracker(...).
 
-Every tracker exposes the same interface:
-    tracks = tracker.update(dets, frame)         # dets: (N, 6), tracks: (M, 8)
-    tracker.plot_results(frame, show_trajectories=True)
-
-Columns of `tracks`: [x1, y1, x2, y2, id, conf, cls, det_ind].
+In BoxMOT 17 the tracker classes are no longer top-level imports. The
+canonical way to instantiate a tracker is `boxmot.trackers.tracker_zoo
+.create_tracker(tracker_type, ...)`, which loads the matching default
+config from boxmot/configs/trackers/<name>.yaml and applies overrides.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Dict
 
-from boxmot import (
-    BoostTrack,
-    BotSort,
-    ByteTrack,
-    DeepOcSort,
-    ImprAssoc,
-    OcSort,
-    StrongSort,
+from boxmot.trackers.tracker_zoo import create_tracker, get_tracker_config
+
+log = logging.getLogger(__name__)
+
+# Tracker types BoxMOT 17 ships (lowercase, the names you pass to --tracker
+# and to create_tracker()).
+KNOWN_TRACKERS = (
+    "bytetrack",
+    "botsort",
+    "sfsort",
+    "strongsort",
+    "ocsort",
+    "deepocsort",
+    "hybridsort",
+    "boosttrack",
 )
 
-# Map yaml-friendly names to BoxMOT classes.
-_TRACKERS = {
-    "botsort": BotSort,
-    "bytetrack": ByteTrack,
-    "deepocsort": DeepOcSort,
-    "ocsort": OcSort,
-    "strongsort": StrongSort,
-    "imprassoc": ImprAssoc,
-    "boosttrack": BoostTrack,
-}
-
-# Trackers that take a ReID model (Siamese / OSNet / CLIP / etc.).
-_REID_TRACKERS = {"botsort", "deepocsort", "strongsort", "imprassoc", "boosttrack"}
+# Custom (subclass) trackers registered at runtime go here. They take
+# priority over BoxMOT's built-ins if names collide.
+_CUSTOM: Dict[str, Any] = {}
 
 
-def register_tracker(name: str, cls) -> None:
-    """Register a custom tracker (e.g. your own subclass of BotSort)."""
-    _TRACKERS[name.lower()] = cls
-    if getattr(cls, "_is_reid", False):
-        _REID_TRACKERS.add(name.lower())
+def register_tracker(name: str, factory) -> None:
+    """Register a custom tracker.
+
+    `factory` is either a callable taking the same kwargs as create_tracker
+    (reid_weights, device, half, per_class, ...) or a class to instantiate
+    directly with those kwargs.
+    """
+    _CUSTOM[name.lower()] = factory
 
 
 def build_tracker(cfg: Dict[str, Any]):
-    """Instantiate a BoxMOT tracker from a config dict.
+    """Instantiate a tracker from a config dict.
 
-    Recognised top-level keys: ``type``, ``reid_weights``, ``device``, ``half``,
-    ``per_class``. Anything under ``params`` is passed verbatim to the tracker
-    constructor, so you get full control of BoxMOT's hyperparameters from YAML.
+    Recognised keys (snake_case):
+        type            (required) e.g. 'botsort', 'boosttrack', 'ocsort'
+        tracker_config  optional path to a custom tracker yaml
+        reid_weights    path to a ReID .pt (required for appearance trackers)
+        device          'cpu' | 'cuda:0' | ...
+        half            bool
+        per_class       bool
+        params          dict of overrides forwarded as evolve_param_dict
     """
     cfg = dict(cfg)
     name = cfg.pop("type").lower()
-    if name not in _TRACKERS:
+
+    # Custom subclass overrides built-in.
+    if name in _CUSTOM:
+        return _CUSTOM[name](**cfg)
+
+    if name not in KNOWN_TRACKERS:
         raise ValueError(
-            f"Unknown tracker '{name}'. Available: {sorted(_TRACKERS)}."
+            f"Unknown tracker '{name}'. "
+            f"Built-in: {KNOWN_TRACKERS}. Custom: {sorted(_CUSTOM)}"
         )
 
-    cls = _TRACKERS[name]
-    kwargs: Dict[str, Any] = dict(cfg.pop("params", {}))
-
-    if name in _REID_TRACKERS:
-        if "reid_weights" not in cfg:
-            raise ValueError(f"Tracker '{name}' requires 'reid_weights' in config.")
-        kwargs.setdefault("reid_weights", Path(cfg.pop("reid_weights")))
-        kwargs.setdefault("device", cfg.pop("device", "cuda:0"))
-        kwargs.setdefault("half", cfg.pop("half", False))
-        if "per_class" in cfg:
-            kwargs.setdefault("per_class", cfg.pop("per_class"))
-    else:
-        # Drop reid-specific keys silently if user left them in YAML.
-        for k in ("reid_weights", "device", "half", "per_class"):
-            cfg.pop(k, None)
-
-    # Anything else in cfg is forwarded too (lets users tweak e.g. track_thresh).
-    kwargs.update(cfg)
-
-    return cls(**kwargs)
+    return create_tracker(
+        tracker_type=name,
+        tracker_config=cfg.get("tracker_config"),
+        reid_weights=Path(cfg["reid_weights"]) if cfg.get("reid_weights") else None,
+        device=cfg.get("device", "cuda:0"),
+        half=cfg.get("half", False),
+        per_class=cfg.get("per_class", False),
+        evolve_param_dict=cfg.get("params"),
+    )
 
 
 def list_trackers() -> list:
-    return sorted(_TRACKERS)
+    return sorted(set(KNOWN_TRACKERS) | set(_CUSTOM))
 
 
-__all__ = ["build_tracker", "register_tracker", "list_trackers"]
+__all__ = ["build_tracker", "register_tracker", "list_trackers",
+           "create_tracker", "get_tracker_config", "KNOWN_TRACKERS"]
