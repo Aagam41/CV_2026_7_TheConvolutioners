@@ -1,29 +1,22 @@
 """Run a tracker over every sequence of a VisDrone-MOT split.
 
-Two paths supported by ``--mode``:
-    boxmot   → uses the official Boxmot CLI engine for each sequence
-               (consistent with BoxMOT's published numbers; needs a built-in
-               or VisDrone-trained detector accessible to BoxMOT).
-    custom   → uses TrackingPipeline with our SAHI+YOLO detector
-               (good for tiny aerial targets).
-
-After tracking, optionally:
-    1. Convert VisDrone GT to MOT-Challenge format under ``<gt_root>``.
-    2. Evaluate the run with ``Boxmot.val(eval_existing=True)``.
+Compatible with BoxMOT 17.x:
+  - constructor only accepts detector / reid / tracker / classes / project
+  - device, half, imgsz, conf, iou, save, save_txt, show, verbose are
+    keyword-only args on track() / generate() / val() / tune()
+  - drop save_crop, save_trajectories, show_trajectories, target_id, per_class
 
 Examples
 --------
     # Path A — eval BoxMOT's official ablation pipeline on val
     python scripts/visdrone_run.py \
-        --root /data/VisDrone --split val \
-        --mode boxmot \
+        --root /data/VisDrone --split val --mode boxmot \
         --detector yolox_x_visdrone --reid lmbn_n_duke --tracker botsort \
         --evaluate
 
     # Path B — SAHI+YOLOv8 + BotSort on test-dev sequences
     python scripts/visdrone_run.py \
-        --root /data/VisDrone --split test-dev \
-        --mode custom \
+        --root /data/VisDrone --split test-dev --mode custom \
         --detector yolov8n.pt --reid-weights osnet_x0_25_msmt17.pt \
         --tracker botsort --classes 1 2 4 5 6 9 \
         --evaluate
@@ -45,20 +38,28 @@ logging.basicConfig(
 
 
 def _run_boxmot(seqs, args, out_root):
-    bm = Boxmot(detector=args.detector, reid=args.reid, tracker=args.tracker,
-                device=args.device, half=args.half)
+    # BoxMOT 17: constructor only takes detector/reid/tracker/classes/project.
+    bm = Boxmot(
+        detector=args.detector,
+        reid=args.reid,
+        tracker=args.tracker,
+        classes=args.classes,
+        project=str(out_root),
+    )
     for seq in seqs:
         run = bm.track(
             source=str(seq.img_dir),
-            save=args.save_video, save_txt=True,
-            save_crop=args.save_crop, save_trajectories=args.save_trajectories,
-            show_trajectories=True, show_labels=True,
-            classes=args.classes, per_class=args.per_class,
-            conf=args.conf, iou=args.iou, imgsz=args.imgsz,
-            project=str(out_root), name=seq.name, exist_ok=True,
+            imgsz=args.imgsz,
+            conf=args.conf,
+            iou=args.iou,
+            device=args.device,
+            half=args.half,
+            save=args.save_video,
+            save_txt=True,
+            show=False,
             verbose=False,
         )
-        logging.info("[%s] -> %s", seq.name, run.save_dir)
+        logging.info("[%s] -> %s", seq.name, getattr(run, "save_dir", run))
 
 
 def _run_custom(seqs, args, out_root):
@@ -79,6 +80,7 @@ def _run_custom(seqs, args, out_root):
             "type": args.tracker,
             "reid_weights": args.reid_weights,
             "device": args.device, "half": args.half,
+            "per_class": args.per_class,
         },
     )
     for seq in seqs:
@@ -107,29 +109,31 @@ def main() -> None:
     ap.add_argument("--half", action="store_true")
 
     ap.add_argument("--classes", nargs="*", type=int,
-                    default=[1, 2, 4, 5, 6, 9],
-                    help="VisDrone categories to keep (1=ped, 2=people, 4=car, ...)")
-    ap.add_argument("--per-class", action="store_true")
+                    default=[1, 2, 4, 5, 6, 9])
+    ap.add_argument("--per-class", action="store_true",
+                    help="Custom mode only — boxmot mode in v17 ignores this.")
     ap.add_argument("--conf", type=float, default=0.3)
     ap.add_argument("--iou", type=float, default=0.7)
     ap.add_argument("--imgsz", type=int, default=1280)
     ap.add_argument("--slice-size", type=int, default=640,
                     help="custom mode: SAHI slice size")
     ap.add_argument("--save-video", action="store_true", default=True)
-    ap.add_argument("--save-crop", action="store_true")
-    ap.add_argument("--save-trajectories", action="store_true", default=True)
+    ap.add_argument("--save-crop", action="store_true",
+                    help="No-op in BoxMOT 17 — kept for CLI compatibility.")
+    ap.add_argument("--save-trajectories", action="store_true", default=True,
+                    help="Custom mode only — boxmot mode in v17 ignores this.")
 
-    ap.add_argument("--out", type=Path,
-                    default=Path("outputs/visdrone"),
-                    help="Output root for predictions / videos.")
+    ap.add_argument("--out", type=Path, default=Path("outputs/visdrone"))
     ap.add_argument("--evaluate", action="store_true",
-                    help="After tracking, build MOT-Challenge GT and run val(eval_existing).")
-    ap.add_argument("--gt-out", type=Path,
-                    default=Path("outputs/visdrone/gt"),
-                    help="Where to write converted MOT-Challenge GT.")
-    ap.add_argument("--limit", type=int, default=0,
-                    help="Process at most N sequences (0=all). Handy for sanity checks.")
+                    help="After tracking, build MOT-Challenge GT and run val.")
+    ap.add_argument("--gt-out", type=Path, default=Path("outputs/visdrone/gt"))
+    ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
+
+    if args.per_class and args.mode == "boxmot":
+        logging.warning("--per-class is not supported by Boxmot 17 facade; ignoring.")
+    if args.save_crop:
+        logging.warning("--save-crop is not supported by Boxmot 17 facade; ignoring.")
 
     ds = VisDroneMOT(args.root, split=args.split)
     seqs = ds.sequences()
@@ -149,22 +153,26 @@ def main() -> None:
         return
 
     if args.split == "train":
-        logging.warning("Skipping eval on 'train' split (typically used for fitting).")
+        logging.warning("Skipping eval on 'train' split.")
         return
 
-    # Convert GT once.
     gt_root = ds.export_motchallenge_gt(args.gt_out, benchmark_name="VisDrone-MOT")
     logging.info("Converted GT -> %s", gt_root)
 
-    # Evaluate with BoxMOT's official engine.
-    result = Boxmot().val(
-        benchmark=f"VisDrone-MOT-{args.split.replace('-', '')}",
-        eval_existing=True,
-        project=str(out_root.parent), name=out_root.name,
-        verbose=True,
-        extra={"--gt-folder": str(args.gt_out)},
+    bm = Boxmot(
+        detector=args.detector,
+        reid=args.reid,
+        tracker=args.tracker,
+        classes=args.classes,
+        project=str(out_root.parent),
     )
-    logging.info("Metrics: %s", result.metrics)
+    result = bm.val(
+        benchmark=f"VisDrone-MOT-{args.split.replace('-', '')}",
+        device=args.device,
+        half=args.half,
+        verbose=True,
+    )
+    logging.info("Metrics: %s", result)
 
 
 if __name__ == "__main__":
