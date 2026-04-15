@@ -1,92 +1,60 @@
-"""Smoke test: verify Boxmot wrapper builds the right CLI argv.
+"""Smoke test — verifies the BoxMOT 17 API surface we depend on.
 
-Does NOT call the real BoxMOT engine — it monkey-patches subprocess so the
-test runs offline with no model downloads. Verifies that snake_case kwargs
-turn into the correct kebab-case CLI flags.
-
-Run:
-    python tests/smoke_test.py
+Runs offline (does NOT call the real BoxMOT engine). Just confirms:
+    - boxmot.Boxmot exists with the expected method signatures
+    - src package imports cleanly
+    - tracker factory lists known trackers
 """
 from __future__ import annotations
 
-import subprocess
+import inspect
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from src import Boxmot  # noqa: E402
 
 
-def _capture_cmd(*_a, **_kw):
-    _capture_cmd.cmd = _a[0]
-    return subprocess.CompletedProcess(args=_a[0], returncode=0, stdout="", stderr="")
+def test_boxmot_import():
+    import boxmot
+    assert hasattr(boxmot, "Boxmot"), "boxmot.Boxmot missing"
+    assert hasattr(boxmot, "track"), "boxmot.track missing"
+    assert hasattr(boxmot, "evaluate"), "boxmot.evaluate missing"
+    print("OK  boxmot.Boxmot exists")
 
 
-def test_track_argv():
-    with patch("src.boxmot_api.subprocess.run", side_effect=_capture_cmd):
-        Boxmot(detector="yolov8n", reid="osnet_x0_25_msmt17", tracker="botsort").track(
-            source="video.mp4",
-            save=True, save_txt=True, show_trajectories=True,
-            classes=[0, 1], per_class=True, target_id=7,
-            conf=0.3, iou=0.5, imgsz=640,
-            project="outputs/track", name="exp1", exist_ok=True,
-        )
-    cmd = _capture_cmd.cmd
-    assert "track" in cmd
-    assert ["--detector", "yolov8n"] == cmd[cmd.index("--detector"):cmd.index("--detector") + 2]
-    assert "--save" in cmd
-    assert "--save-txt" in cmd
-    assert "--show-trajectories" in cmd
-    assert "--per-class" in cmd
-    assert "--exist-ok" in cmd
-    assert ["--classes", "0,1"] == cmd[cmd.index("--classes"):cmd.index("--classes") + 2]
-    assert ["--target-id", "7"] == cmd[cmd.index("--target-id"):cmd.index("--target-id") + 2]
-    assert ["--source", "video.mp4"] == cmd[cmd.index("--source"):cmd.index("--source") + 2]
-    print("OK  track argv")
+def test_boxmot_signature():
+    from boxmot import Boxmot
+    sig = inspect.signature(Boxmot.__init__)
+    params = set(sig.parameters)
+    expected = {"self", "detector", "reid", "tracker", "classes", "project"}
+    missing = expected - params
+    assert not missing, f"Boxmot.__init__ missing params: {missing}"
+    print("OK  Boxmot.__init__ signature matches v17")
 
 
-def test_val_argv():
-    with patch("src.boxmot_api.subprocess.run", side_effect=_capture_cmd):
-        Boxmot(detector="yolov8n", reid="lmbn_n_duke", tracker="boosttrack").val(
-            benchmark="mot17-ablation", postprocessing="gbrc", verbose=True,
-        )
-    cmd = _capture_cmd.cmd
-    assert "eval" in cmd
-    assert ["--benchmark", "mot17-ablation"] == cmd[cmd.index("--benchmark"):cmd.index("--benchmark") + 2]
-    assert ["--postprocessing", "gbrc"] == cmd[cmd.index("--postprocessing"):cmd.index("--postprocessing") + 2]
-    assert "--verbose" in cmd
-    print("OK  val argv")
+def test_src_imports():
+    from src import (Boxmot, TrackingPipeline, build_detector,
+                     build_tracker, list_trackers)
+    print("OK  src package imports")
 
 
-def test_generate_argv():
-    with patch("src.boxmot_api.subprocess.run", side_effect=_capture_cmd):
-        Boxmot(detector="yolov8n", reid="osnet_x0_25_msmt17").generate(
-            source="path/to/dataset", project="outputs/cache",
-        )
-    cmd = _capture_cmd.cmd
-    assert "generate" in cmd
-    assert "--tracker" not in cmd, "generate must not pass --tracker"
-    assert ["--source", "path/to/dataset"] == cmd[cmd.index("--source"):cmd.index("--source") + 2]
-    print("OK  generate argv")
+def test_tracker_factory():
+    from src import list_trackers
+    trks = list_trackers()
+    assert "botsort" in trks, f"botsort missing from {trks}"
+    print(f"OK  tracker factory lists: {trks}")
 
 
-def test_extra_passthrough():
-    with patch("src.boxmot_api.subprocess.run", side_effect=_capture_cmd):
-        Boxmot(detector="yolov8n", tracker="ocsort").track(
-            source="0", show=True,
-            extra={"--n-threads": 4, "--agnostic-nms": True},
-        )
-    cmd = _capture_cmd.cmd
-    assert "--show" in cmd
-    assert ["--n-threads", "4"] == cmd[cmd.index("--n-threads"):cmd.index("--n-threads") + 2]
-    assert "--agnostic-nms" in cmd
-    print("OK  extras passthrough")
+def test_visdrone_dataset():
+    from src.datasets import VisDroneMOT, SPLIT_DIRS
+    assert "train" in SPLIT_DIRS and "val" in SPLIT_DIRS and "test-dev" in SPLIT_DIRS
+    print(f"OK  VisDroneMOT splits: {sorted(SPLIT_DIRS)}")
 
 
 if __name__ == "__main__":
-    test_track_argv()
-    test_val_argv()
-    test_generate_argv()
-    test_extra_passthrough()
+    test_boxmot_import()
+    test_boxmot_signature()
+    test_src_imports()
+    test_tracker_factory()
+    test_visdrone_dataset()
     print("\nAll smoke tests PASSED.")

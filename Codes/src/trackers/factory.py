@@ -18,14 +18,8 @@ log = logging.getLogger(__name__)
 # Tracker types BoxMOT 17 ships (lowercase, the names you pass to --tracker
 # and to create_tracker()).
 KNOWN_TRACKERS = (
-    "bytetrack",
-    "botsort",
-    "sfsort",
-    "strongsort",
-    "ocsort",
-    "deepocsort",
-    "hybridsort",
-    "boosttrack",
+    "bytetrack", "botsort", "sfsort", "strongsort",
+    "ocsort", "deepocsort", "hybridsort", "boosttrack",
 )
 
 # Custom (subclass) trackers registered at runtime go here. They take
@@ -34,12 +28,7 @@ _CUSTOM: Dict[str, Any] = {}
 
 
 def register_tracker(name: str, factory) -> None:
-    """Register a custom tracker.
-
-    `factory` is either a callable taking the same kwargs as create_tracker
-    (reid_weights, device, half, per_class, ...) or a class to instantiate
-    directly with those kwargs.
-    """
+    """Register a custom tracker (callable or class)."""
     _CUSTOM[name.lower()] = factory
 
 
@@ -58,7 +47,6 @@ def build_tracker(cfg: Dict[str, Any]):
     cfg = dict(cfg)
     name = cfg.pop("type").lower()
 
-    # Custom subclass overrides built-in.
     if name in _CUSTOM:
         return _CUSTOM[name](**cfg)
 

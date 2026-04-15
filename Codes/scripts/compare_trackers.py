@@ -1,8 +1,8 @@
-"""Benchmark several trackers on the same dataset and print one metrics table.
+"""Benchmark several trackers via BoxMOT 17's native Boxmot facade.
 
 Per BoxMOT's recommended workflow:
     1. Generate detections + ReID embeddings ONCE per detector/reid combo.
-    2. Run val() per tracker — it auto-reuses the cache for fast comparison.
+    2. Run val() per tracker — auto-reuses the cache for fast comparison.
 
 Usage:
     python scripts/compare_trackers.py --config configs/compare.yaml
@@ -30,41 +30,30 @@ def main() -> None:
     args = ap.parse_args()
 
     cfg = yaml.safe_load(args.config.read_text())
-
     detector = cfg["detector"]
     reid = cfg.get("reid")
-    device = cfg.get("device")
+    device = cfg.get("device", "cuda:0")
     half = cfg.get("half", False)
     benchmark = cfg["benchmark"]
     val_extras = cfg.get("val", {})
 
     # 1) Pre-compute detections + embeddings once.
-    cache = Boxmot(detector=detector, reid=reid, device=device, half=half).generate(
-        benchmark=benchmark
+    cache = Boxmot(detector=detector, reid=reid).generate(
+        benchmark=benchmark, device=device, half=half,
     )
-    print(f"Cache ready at {cache.cache_dir} (elapsed {cache.timings.get('elapsed', 0):.1f}s)")
+    logging.info("Cache ready at %s", cache.cache_dir)
 
     # 2) Evaluate every tracker against the same cache.
     rows: list[dict] = []
     for tracker in cfg["trackers"]:
-        bm = Boxmot(detector=detector, reid=reid, tracker=tracker,
-                    device=device, half=half)
-        result = bm.val(benchmark=benchmark, **val_extras)
-        rows.append({"tracker": tracker, **result.metrics})
-        print(f"\n[{tracker}] {result}")
+        bm = Boxmot(detector=detector, reid=reid, tracker=tracker)
+        result = bm.val(benchmark=benchmark, device=device, half=half, **val_extras)
+        rows.append({"tracker": tracker, "result": result})
+        logging.info("[%s] %s", tracker, result)
 
-    # 3) Pretty-print comparison.
-    if not rows:
-        return
-    keys = ("HOTA", "MOTA", "IDF1", "AssA", "DetA", "IDs", "FP", "FN")
-    headers = ["tracker"] + [k for k in keys if any(k in r for r in rows)]
-    print("\n" + " | ".join(f"{h:>9}" for h in headers))
-    print("-" * (12 * len(headers)))
-    for r in rows:
-        cells = [f"{r['tracker']:>9}"]
-        for k in headers[1:]:
-            cells.append(f"{r.get(k, float('nan')):>9.3f}")
-        print(" | ".join(cells))
+    print("\n=== Comparison ===")
+    for row in rows:
+        print(f"{row['tracker']:>12}  {row['result']}")
 
 
 if __name__ == "__main__":
