@@ -1,0 +1,25 @@
+# Compare several trackers on the SAME benchmark with the SAME
+# detector + ReID. The framework runs `Boxmot.generate(benchmark=...)`
+# once to cache detections + embeddings, then `Boxmot.val(...)` per tracker.
+
+detector: yolov8n
+reid: osnet_x0_25_msmt17
+device: cuda:0
+half: false
+
+benchmark: mot17-ablation     # mot17-ablation | mot20-ablation | dancetrack-ablation | visdrone-ablation | MOT17 | MOT20
+
+trackers:
+  - botsort
+  - boosttrack
+  - strongsort
+  - deepocsort
+  - bytetrack
+  - ocsort
+
+val:
+  postprocessing: gbrc        # 'gsi' | 'gbrc' | omit for none
+  verbose: true
+  project: outputs/compare
+  name: bench
+  exist_ok: true

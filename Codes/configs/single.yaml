@@ -1,0 +1,36 @@
+# Single tracking run via the Boxmot Python API.
+# Anything under `track:` is forwarded as a kwarg to Boxmot.track(),
+# which maps 1:1 to BoxMOT's CLI flags (snake_case ↔ kebab-case).
+
+detector: yolov8n
+reid: osnet_x0_25_msmt17
+tracker: botsort
+device: cuda:0
+half: false
+
+track:
+  source: video.mp4
+  save: true                # write annotated mp4
+  save_txt: true            # write MOT-Challenge format predictions
+  save_crop: false          # save per-track crops
+  save_trajectories: true   # save trajectory file
+  show_trajectories: true   # draw trail on the video
+  show_labels: true
+  show_conf: true
+  classes: [0]              # COCO 'person'; omit to track all classes
+  per_class: false
+  conf: 0.3
+  iou: 0.7
+  imgsz: 640
+  vid_stride: 1
+  project: outputs/track
+  name: botsort_run
+  exist_ok: true
+  verbose: true
+  # target_id: 7            # uncomment to highlight a single track ID
+
+# Optional: evaluate after tracking against a benchmark.
+# val:
+#   benchmark: mot17-ablation
+#   postprocessing: gbrc
+#   verbose: true

@@ -1,0 +1,34 @@
+# Track every sequence in VisDrone-MOT train split (Path B — custom SAHI+YOLO).
+# Useful for generating tracker outputs to mine pseudo-labels or visualise.
+# `evaluate: false` because train is typically used for fitting.
+
+dataset:
+  root: /data/VisDrone           # contains VisDrone2019-MOT-train/...
+  split: train
+
+mode: custom                      # 'boxmot' or 'custom'
+
+# Detector + tracker (Path B = custom)
+detector: yolov8n.pt              # ideally a model trained on VisDrone classes
+reid_weights: osnet_x0_25_msmt17.pt
+tracker: botsort
+device: cuda:0
+half: false
+
+# VisDrone categories to keep (drop ignored=0 and others=11)
+classes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+per_class: true                   # separate ID space per class
+
+# Detection params
+conf: 0.25
+iou: 0.7
+imgsz: 1280
+slice_size: 640                   # SAHI slice (custom mode only)
+
+save_video: true
+save_trajectories: true
+save_crop: false
+
+out: outputs/visdrone
+evaluate: false
+limit: 0                          # 0 = all sequences
