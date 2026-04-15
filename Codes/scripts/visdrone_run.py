@@ -156,9 +156,20 @@ def main() -> None:
         logging.warning("Skipping eval on 'train' split.")
         return
 
+    # 1) Convert VisDrone GT → MOT-Challenge layout
     gt_root = ds.export_motchallenge_gt(args.gt_out, benchmark_name="VisDrone-MOT")
     logging.info("Converted GT -> %s", gt_root)
 
+    # 2) Register the benchmark with BoxMOT so bm.val() can find it
+    from src.datasets.register_boxmot import register_visdrone_benchmark
+    benchmark_id = register_visdrone_benchmark(
+        split=args.split,
+        gt_root=args.gt_out,
+        detector=args.detector,
+        reid=args.reid,
+    )
+
+    # 3) Evaluate
     bm = Boxmot(
         detector=args.detector,
         reid=args.reid,
@@ -167,7 +178,7 @@ def main() -> None:
         project=str(out_root.parent),
     )
     result = bm.val(
-        benchmark=f"VisDrone-MOT-{args.split.replace('-', '')}",
+        benchmark=benchmark_id,
         device=args.device,
         half=args.half,
         verbose=True,
